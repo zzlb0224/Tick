@@ -15,44 +15,53 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 核心修复：强制使用JDK 8（Gradle 5.6.4唯一兼容版本）
+      # 核心修复：JDK 8配置+校验
       - name: Set up JDK 8
         uses: actions/setup-java@v4
         with:
           java-version: '8'
           distribution: 'temurin'
           cache: gradle
-          # 强制指定JDK 8路径，避免环境变量冲突
           java-package: jdk
           architecture: x64
 
-      # 验证JDK版本（新增：确保使用JDK 8）
       - name: Verify JDK version
         run: |
           java -version
           javac -version
-          # 检查是否为JDK 8，非8则终止
           if ! java -version 2>&1 | grep -q "1.8"; then
             echo "❌ 当前JDK版本不是8，编译会失败！"
             exit 1
           fi
 
-      # 获取最新版本号并+1
+      # 核心修复：版本号递增逻辑（解决1.0.1→10.2问题）
       - name: Get latest versionName and increment
         id: get_version
         run: |
+          # 1. 获取最新Release的tag_name
           LATEST_VERSION=$(curl -s \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             https://api.github.com/repos/zzlb0224/Tick/releases/latest | jq -r '.tag_name')
+          
+          # 2. 去掉v前缀（兼容v1.0.1和1.0.1两种格式）
           LATEST_VERSION=${LATEST_VERSION#v}
+          echo "原始版本号（去v后）：$LATEST_VERSION"
+          
+          # 3. 修复版本号拆分逻辑（关键！）
+          # 拆分版本号为数组（兼容x、x.y、x.y.z格式）
           IFS='.' read -ra VERSION_PARTS <<< "$LATEST_VERSION"
-          LAST_PART=${VERSION_PARTS[-1]}
-          NEW_LAST_PART=$((LAST_PART + 1))
-          unset VERSION_PARTS[-1]
-          NEW_VERSION="${VERSION_PARTS[*]}.${NEW_LAST_PART}"
-          NEW_VERSION=${NEW_VERSION// /}
+          # 确保数组至少有3位（不足补0），避免位数缺失导致错误
+          MAJOR=${VERSION_PARTS[0]:-0}
+          MINOR=${VERSION_PARTS[1]:-0}
+          PATCH=${VERSION_PARTS[2]:-0}
+          
+          # 仅递增补丁号（PATCH），如1.0.1 → 1.0.2；1.2 → 1.2.1；5 → 5.0.1
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+          
+          # 输出变量（带v前缀，保持和原有tag格式一致）
           echo "NEW_VERSION_NAME=$NEW_VERSION" >> $GITHUB_ENV
-          echo "✅ Original version: $LATEST_VERSION → New version: $NEW_VERSION"
+          echo "✅ 版本号递增：v$LATEST_VERSION → v$NEW_VERSION"
 
       # 安装Android构建依赖
       - name: Install Android SDK Build Tools
@@ -73,14 +82,13 @@ jobs:
             echo "❌ Keystore解密失败" && exit 1
           fi
 
-      # 修复Gradle权限+强制使用JDK 8运行Gradle
+      # 配置Gradle使用JDK 8
       - name: Grant execute permission for gradlew
         run: |
           chmod +x gradlew
-          # 强制指定Gradle使用JDK 8（关键！避免Gradle调用系统高版本JDK）
           echo "org.gradle.java.home=${{ env.JAVA_HOME }}" >> gradle.properties
 
-      # 编译Release APK（添加--stacktrace便于调试）
+      # 编译Release APK
       - name: Build Release APK
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
@@ -105,7 +113,7 @@ jobs:
             echo "❌ 签名APK生成失败" && exit 1
           fi
 
-      # 发布到GitHub Release
+      # 发布到GitHub Release（tag带v前缀，保持格式统一）
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
