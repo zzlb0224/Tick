@@ -2,18 +2,21 @@ name: Android Build & Sign & Release
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 关键：授予提交代码的权限
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 拉取完整提交历史
+          fetch-depth: 0  # 拉取完整提交历史
+          persist-credentials: true  # 保留凭证用于推送
 
       - name: Set up JDK 8
         uses: actions/setup-java@v4
@@ -22,66 +25,108 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # 安装zipalign依赖
+      # 安装依赖
       - name: Install Android SDK Build Tools
         run: |
-          sudo apt update
-          sudo apt install -y android-sdk-build-tools
+          sudo apt update -y
+          sudo apt install -y android-sdk-build-tools zip unzip
 
-      # 自动递增版本号（带默认值兜底）
-      - name: Auto increment version code and name
+      # 自动递增并永久修改versionName/versionCode
+      - name: Auto bump version (persist to build.gradle)
         run: |
-          BUILD_GRADLE_PATH="app/build.gradle"
-          CURRENT_VERSION_NAME=$(grep -oP 'versionName "\K[^"]+' $BUILD_GRADLE_PATH || echo "1.0.0")
-          CURRENT_VERSION_CODE=$(grep -oP 'versionCode \K\d+' $BUILD_GRADLE_PATH || echo "1")
-          
-          NEW_VERSION_CODE=$((CURRENT_VERSION_CODE + 1))
-          NEW_VERSION_NAME=$(echo $CURRENT_VERSION_NAME | awk -F. '{print $1"."$2"."$3+1}')
-          
-          echo "Current version: $CURRENT_VERSION_NAME (code: $CURRENT_VERSION_CODE)"
-          echo "New version: $NEW_VERSION_NAME (code: $NEW_VERSION_CODE)"
-          
-          # 新增/替换versionCode
-          if ! grep -q "versionCode" $BUILD_GRADLE_PATH; then
-            sed -i '/defaultConfig {/a \        versionCode '"$NEW_VERSION_CODE" $BUILD_GRADLE_PATH
-          else
-            sed -i "s/versionCode $CURRENT_VERSION_CODE/versionCode $NEW_VERSION_CODE/" $BUILD_GRADLE_PATH
-          fi
-          
-          # 新增/替换versionName
-          if ! grep -q "versionName" $BUILD_GRADLE_PATH; then
-            sed -i '/defaultConfig {/a \        versionName "'"$NEW_VERSION_NAME"'"' $BUILD_GRADLE_PATH
-          else
-            sed -i "s/versionName \"$CURRENT_VERSION_NAME\"/versionName \"$NEW_VERSION_NAME\"/" $BUILD_GRADLE_PATH
-          fi
-          
-          echo "NEW_VERSION_NAME=$NEW_VERSION_NAME" >> $GITHUB_ENV
-          echo "NEW_VERSION_CODE=$NEW_VERSION_CODE" >> $GITHUB_ENV
+          set -e
+          BUILD_GRADLE="app/build.gradle"
 
-      # 解密keystore（若未加密则跳过）
+          # ========== 1. 读取当前版本号（兜底默认值） ==========
+          # 读取versionName，无则默认1.0.0
+          if grep -qE '^[[:space:]]*versionName' "$BUILD_GRADLE"; then
+            CURRENT_VERSION_NAME=$(grep -m1 -E '^[[:space:]]*versionName' "$BUILD_GRADLE" | sed -E 's/.*versionName[[:space:]]*"([^"]+)".*/\1/')
+          else
+            CURRENT_VERSION_NAME="1.0.0"
+          fi
+
+          # 读取versionCode，无则默认1
+          if grep -qE '^[[:space:]]*versionCode' "$BUILD_GRADLE"; then
+            CURRENT_VERSION_CODE=$(grep -m1 -E '^[[:space:]]*versionCode' "$BUILD_GRADLE" | sed -E 's/.*versionCode[[:space:]]*([0-9]+).*/\1/')
+          else
+            CURRENT_VERSION_CODE=1
+          fi
+
+          # ========== 2. 计算新版本号 ==========
+          NEW_VERSION_CODE=$((CURRENT_VERSION_CODE + 1))
+          # 拆分版本名（兼容1.0、1.0.0、1.0.0.1等格式）
+          IFS='.' read -ra PARTS <<< "$CURRENT_VERSION_NAME"
+          MAJOR=${PARTS[0]:-0}
+          MINOR=${PARTS[1]:-0}
+          PATCH=${PARTS[2]:-0}
+          PATCH=$((PATCH + 1))  # 递增补丁号
+          NEW_VERSION_NAME="${MAJOR}.${MINOR}.${PATCH}"
+
+          echo "🔧 版本号变更：${CURRENT_VERSION_NAME}(${CURRENT_VERSION_CODE}) → ${NEW_VERSION_NAME}(${NEW_VERSION_CODE})"
+
+          # ========== 3. 精准修改build.gradle（核心） ==========
+          # 修改versionCode（兼容任意缩进/空格）
+          sed -i.bak -E "s/^([[:space:]]*)versionCode[[:space:]]*[0-9]+/\1versionCode ${NEW_VERSION_CODE}/" "$BUILD_GRADLE"
+          # 修改versionName（兼容任意缩进/空格）
+          sed -i.bak -E "s/^([[:space:]]*)versionName[[:space:]]*\"[^\"]+\"/\1versionName \"${NEW_VERSION_NAME}\"/" "$BUILD_GRADLE"
+          rm -f "${BUILD_GRADLE}.bak"  # 删除sed备份文件
+
+          # 若文件中无versionName/versionCode，插入到defaultConfig块（兜底）
+          if ! grep -qE '^[[:space:]]*versionName' "$BUILD_GRADLE"; then
+            sed -i "/^[[:space:]]*defaultConfig {/a \        versionName \"${NEW_VERSION_NAME}\"" "$BUILD_GRADLE"
+          fi
+          if ! grep -qE '^[[:space:]]*versionCode' "$BUILD_GRADLE"; then
+            sed -i "/^[[:space:]]*defaultConfig {/a \        versionCode ${NEW_VERSION_CODE}" "$BUILD_GRADLE"
+          fi
+
+          # 保存到环境变量供后续使用
+          echo "NEW_VERSION_NAME=${NEW_VERSION_NAME}" >> $GITHUB_ENV
+          echo "NEW_VERSION_CODE=${NEW_VERSION_CODE}" >> $GITHUB_ENV
+
+          # ========== 4. 提交修改到代码库（永久生效关键） ==========
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          # 检查是否真的有修改（避免空提交）
+          if git diff --quiet "$BUILD_GRADLE"; then
+            echo "ℹ️ 版本号无变化，跳过提交"
+          else
+            git add "$BUILD_GRADLE"
+            git commit -m "chore: bump version to v${NEW_VERSION_NAME} (build ${NEW_VERSION_CODE})"
+            git push origin "${{ github.ref }}"  # 推送到当前分支
+            echo "✅ 版本号已提交到代码库"
+          fi
+
+      # 解密keystore（按需）
       - name: Decrypt keystore
+        if: ${{ secrets.GPG_PASSWORD != '' }}
         run: |
           gpg --quiet --batch --yes --decrypt --passphrase="${{ secrets.GPG_PASSWORD }}" \
           --output my-release-key.keystore ${{ secrets.KEYSTORE_FILE }}
 
+      # 编译、签名、发布（保留你原有逻辑，仅补充容错）
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon
+      - name: Clean & Build Release APK
+        run: |
+          ./gradlew clean assembleRelease --no-daemon
+          # 验证APK是否生成
+          if [ ! -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
+            echo "❌ 编译失败：未找到unsigned APK" && exit 1
+          fi
 
       - name: Sign APK
         run: |
-          APK_PATH=$(find app/build/outputs/apk/release -name "app-release-unsigned.apk")
+          APK_PATH="app/build/outputs/apk/release/app-release-unsigned.apk"
+          # 签名
           jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
           -keystore my-release-key.keystore \
           -storepass ${{ secrets.KEYSTORE_PASSWORD }} \
           -keypass ${{ secrets.KEY_PASSWORD }} \
           $APK_PATH ${{ secrets.KEY_ALIAS }}
-          # 带版本号命名APK
-          /usr/bin/zipalign -v 4 $APK_PATH app/build/outputs/apk/release/app-v${{ env.NEW_VERSION_NAME }}-release-signed.apk
+          # 优化并命名
+          /usr/bin/zipalign -v 4 $APK_PATH "app/build/outputs/apk/release/app-v${{ env.NEW_VERSION_NAME }}-release-signed.apk"
 
-      # 自动发布到GitHub Release
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -91,12 +136,11 @@ jobs:
             ## 自动发布的番茄钟APP
             - 版本号：v${{ env.NEW_VERSION_NAME }}
             - 构建号：${{ env.NEW_VERSION_CODE }}
-            - 发布时间：${{ github.event.head_commit.timestamp }}
           files: app/build/outputs/apk/release/app-v${{ env.NEW_VERSION_NAME }}-release-signed.apk
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Clean up keystore
+      - name: Clean up
         if: always()
         run: rm -f my-release-key.keystore
