@@ -59,6 +59,10 @@
     <string name="pref_title_advanced">高级</string>
     <string name="pref_title_screen_on">屏幕常亮</string>
     <string name="pref_title_screen_on_summary">仅针对主界面，在番茄钟期间保持屏幕常亮</string>
+    <string name="pref_title_bg_r">背景颜色 - R</string>
+    <string name="pref_title_bg_g">背景颜色 - G</string>
+    <string name="pref_title_bg_b">背景颜色 - B</string>
+    <string name="pref_title_color_value">%1$d</string>
     <string name="pref_title_check_update">检查更新</string>
     <string name="check_update_connected_failed">无法连接网络</string>
     <string name="check_update_connected_error">网络连接异常，请稍后再试</string>

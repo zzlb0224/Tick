@@ -17,6 +17,9 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.MenuItem;
 import android.view.View;
+import android.graphics.Color;
+
+import java.util.Random;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -45,6 +48,7 @@ public class MainActivity extends AppCompatActivity
     private TickProgressBar mProgressBar;
     private RippleWrapper mRippleWrapper;
     private long mLastClickTime = 0;
+    private int mRippleClickCount = 0;
 
     public static Intent newIntent(Context context) {
         return new Intent(context, MainActivity.class);
@@ -103,6 +107,19 @@ public class MainActivity extends AppCompatActivity
         mRippleWrapper = (RippleWrapper)findViewById(R.id.ripple_wrapper);
 
         initActions();
+
+        // apply saved background color (if any)
+        applyDrawerBgFromPrefs();
+    }
+
+    private void applyDrawerBgFromPrefs() {
+        android.content.SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        int r = prefs.getInt("pref_key_bg_r", 255);
+        int g = prefs.getInt("pref_key_bg_g", 255);
+        int b = prefs.getInt("pref_key_bg_b", 255);
+        if (mDrawerLayout != null) {
+            mDrawerLayout.setBackgroundColor(Color.rgb(r, g, b));
+        }
     }
 
     private void initActions() {
@@ -175,11 +192,19 @@ public class MainActivity extends AppCompatActivity
             @Override
             public void onClick(View view) {
                 long clickTime = System.currentTimeMillis();
-                if (clickTime - mLastClickTime < 500) {
+
+                long delta = clickTime - mLastClickTime;
+                if (delta < 500) {
+                    mRippleClickCount++;
+                } else {
+                    mRippleClickCount = 1;
+                }
+
+                // 双击（第2次）: 切换滴答音开关
+                if (mRippleClickCount == 2) {
                     boolean isSoundOn = getSharedPreferences()
                             .getBoolean("pref_key_tick_sound", true);
 
-                    // 修改 SharedPreferences
                     SharedPreferences.Editor editor = PreferenceManager
                             .getDefaultSharedPreferences(getApplicationContext()).edit();
 
@@ -209,6 +234,17 @@ public class MainActivity extends AppCompatActivity
                     }
 
                     updateRipple();
+                }
+
+                // （第4次连续点击）: 改变 drawer_layout 背景颜色
+                if (mRippleClickCount == 4) {
+                    if (mDrawerLayout != null) {
+                        Random rnd = new Random();
+                        int color = Color.rgb(rnd.nextInt(256), rnd.nextInt(256), rnd.nextInt(256));
+                        mDrawerLayout.setBackgroundColor(color);
+                    }
+                    // reset counter after triple-click
+                    mRippleClickCount = 0;
                 }
 
                 mLastClickTime = clickTime;

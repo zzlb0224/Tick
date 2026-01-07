@@ -221,6 +221,122 @@
                     android:gravity="center_vertical"
                     android:clipChildren="false"
                     android:clipToPadding="false">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textAppearance="?android:attr/textAppearance"
+                        android:ellipsize="marquee"
+                        android:text="@string/pref_title_bg_r"
+                        android:paddingBottom="@dimen/preference_header_spacing"
+                        android:fadingEdge="horizontal"
+                        android:maxLines="1"/>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clipChildren="false"
+                        android:clipToPadding="false">
+                        <SeekBar
+                            android:id="@+id/pref_key_bg_r"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:focusable="false"
+                            android:clickable="false"
+                            android:background="@null"/>
+                        <TextView android:id="@+id/pref_key_bg_r_value"
+                                  android:layout_width="wrap_content"
+                                  android:layout_height="match_parent"
+                                  android:gravity="end|center_vertical"
+                                  android:ellipsize="marquee"
+                                  android:fadingEdge="horizontal"
+                                  android:maxLines="1"/>
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textAppearance="?android:attr/textAppearance"
+                        android:ellipsize="marquee"
+                        android:text="@string/pref_title_bg_g"
+                        android:paddingBottom="@dimen/preference_header_spacing"
+                        android:fadingEdge="horizontal"
+                        android:maxLines="1"/>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clipChildren="false"
+                        android:clipToPadding="false">
+                        <SeekBar
+                            android:id="@+id/pref_key_bg_g"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:focusable="false"
+                            android:clickable="false"
+                            android:background="@null"/>
+                        <TextView android:id="@+id/pref_key_bg_g_value"
+                                  android:layout_width="wrap_content"
+                                  android:layout_height="match_parent"
+                                  android:gravity="end|center_vertical"
+                                  android:ellipsize="marquee"
+                                  android:fadingEdge="horizontal"
+                                  android:maxLines="1"/>
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textAppearance="?android:attr/textAppearance"
+                        android:ellipsize="marquee"
+                        android:text="@string/pref_title_bg_b"
+                        android:paddingBottom="@dimen/preference_header_spacing"
+                        android:fadingEdge="horizontal"
+                        android:maxLines="1"/>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clipChildren="false"
+                        android:clipToPadding="false">
+                        <SeekBar
+                            android:id="@+id/pref_key_bg_b"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:focusable="false"
+                            android:clickable="false"
+                            android:background="@null"/>
+                        <TextView android:id="@+id/pref_key_bg_b_value"
+                                  android:layout_width="wrap_content"
+                                  android:layout_height="match_parent"
+                                  android:gravity="end|center_vertical"
+                                  android:ellipsize="marquee"
+                                  android:fadingEdge="horizontal"
+                                  android:maxLines="1"/>
+                    </LinearLayout>
+
+                    <!-- 颜色预览区 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingTop="12dp"
+                        android:paddingBottom="12dp">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="预览"
+                            android:textAppearance="?android:attr/textAppearance"/>
+
+                        <View
+                            android:id="@+id/pref_bg_preview"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="8dp"
+                            android:background="#FFFFFFFF"/>
+                    </LinearLayout>
                     <RelativeLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"

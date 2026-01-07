@@ -20,6 +20,8 @@ import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.graphics.Color;
+import android.view.View;
 
 import com.icodechef.android.tick.R;
 import com.icodechef.android.tick.TickApplication;
@@ -45,9 +47,20 @@ import java.net.URL;
 public class SettingActivity extends AppCompatActivity {
 
     private Toast mToast;
+    private SharedPreferences.OnSharedPreferenceChangeListener mBgPrefListener;
 
     public static Intent newIntent(Context context) {
         return new Intent(context, SettingActivity.class);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (mBgPrefListener != null) {
+            PreferenceManager.getDefaultSharedPreferences(this)
+                    .unregisterOnSharedPreferenceChangeListener(mBgPrefListener);
+            mBgPrefListener = null;
+        }
     }
 
     @Override
@@ -286,6 +299,61 @@ public class SettingActivity extends AppCompatActivity {
                 }
             }
         });
+
+        // 背景颜色 RGB 滑块（0 - 255），使用 SeekBarPreference
+        (new SeekBarPreference(this))
+            .setSeekBar((SeekBar)findViewById(R.id.pref_key_bg_r))
+            .setSeekBarValue((TextView)findViewById(R.id.pref_key_bg_r_value))
+            .setMax(255)
+            .setMin(0)
+            .setUnit(R.string.pref_title_color_value)
+            .setProgress(PreferenceManager.getDefaultSharedPreferences(this)
+                .getInt("pref_key_bg_r", 255))
+            .build();
+
+        (new SeekBarPreference(this))
+            .setSeekBar((SeekBar)findViewById(R.id.pref_key_bg_g))
+            .setSeekBarValue((TextView)findViewById(R.id.pref_key_bg_g_value))
+            .setMax(255)
+            .setMin(0)
+            .setUnit(R.string.pref_title_color_value)
+            .setProgress(PreferenceManager.getDefaultSharedPreferences(this)
+                .getInt("pref_key_bg_g", 255))
+            .build();
+
+        (new SeekBarPreference(this))
+            .setSeekBar((SeekBar)findViewById(R.id.pref_key_bg_b))
+            .setSeekBarValue((TextView)findViewById(R.id.pref_key_bg_b_value))
+            .setMax(255)
+            .setMin(0)
+            .setUnit(R.string.pref_title_color_value)
+            .setProgress(PreferenceManager.getDefaultSharedPreferences(this)
+                .getInt("pref_key_bg_b", 255))
+            .build();
+
+        // 颜色预览 - 初始值并注册监听器以实时更新
+        final View colorPreview = findViewById(R.id.pref_bg_preview);
+        final SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        if (colorPreview != null) {
+            int rr = prefs.getInt("pref_key_bg_r", 255);
+            int gg = prefs.getInt("pref_key_bg_g", 255);
+            int bb = prefs.getInt("pref_key_bg_b", 255);
+            colorPreview.setBackgroundColor(Color.rgb(rr, gg, bb));
+
+            mBgPrefListener = new SharedPreferences.OnSharedPreferenceChangeListener() {
+                @Override
+                public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+                    if ("pref_key_bg_r".equals(key) || "pref_key_bg_g".equals(key) || "pref_key_bg_b".equals(key)) {
+                        int r = sharedPreferences.getInt("pref_key_bg_r", 255);
+                        int g = sharedPreferences.getInt("pref_key_bg_g", 255);
+                        int b = sharedPreferences.getInt("pref_key_bg_b", 255);
+                        colorPreview.setBackgroundColor(Color.rgb(r, g, b));
+                    }
+                }
+            };
+
+            prefs.registerOnSharedPreferenceChangeListener(mBgPrefListener);
+        }
 
         RelativeLayout checkUpdate = (RelativeLayout)findViewById(R.id.check_update_app_layout);
         TextView versionText = (TextView)findViewById(R.id.version_text);
