@@ -1,29 +1,20 @@
-// Top-level build file where you can add configuration options common to all sub-projects/modules.
+// 根项目 build.gradle
 buildscript {
     repositories {
-        // 1. 添加Google仓库（优先）
-        google()
-        // 2. 添加MavenCentral仓库（替代JCenter）
+        google() // 必须放在这里（Gradle 4.1+）
+        jcenter()
         mavenCentral()
-        // 3. 兼容旧版依赖的镜像仓库（兜底）
-        maven { url "https://maven.aliyun.com/repository/public" }
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:2.3.3'
-        
-        // NOTE: Do not place your application dependencies here; they belong
-        // in the individual module build.gradle files
+        // 适配 Gradle 5.6.4 的 AGP 版本（例如 3.6.4）
+        classpath 'com.android.tools.build:gradle:3.6.4'
     }
 }
 
 allprojects {
     repositories {
-        google()
+        google() // 子模块也需要的话，放在这里
+        jcenter()
         mavenCentral()
-        maven { url "https://maven.aliyun.com/repository/public" }
     }
-}
-
-task clean(type: Delete) {
-    delete rootProject.buildDir
 }
