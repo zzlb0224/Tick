@@ -9,93 +9,98 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 授予发布Release的权限
+      contents: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 核心：获取最新版本号并+1
+      # 核心修复：强制使用JDK 8（Gradle 5.6.4唯一兼容版本）
+      - name: Set up JDK 8
+        uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+          cache: gradle
+          # 强制指定JDK 8路径，避免环境变量冲突
+          java-package: jdk
+          architecture: x64
+
+      # 验证JDK版本（新增：确保使用JDK 8）
+      - name: Verify JDK version
+        run: |
+          java -version
+          javac -version
+          # 检查是否为JDK 8，非8则终止
+          if ! java -version 2>&1 | grep -q "1.8"; then
+            echo "❌ 当前JDK版本不是8，编译会失败！"
+            exit 1
+          fi
+
+      # 获取最新版本号并+1
       - name: Get latest versionName and increment
         id: get_version
         run: |
-          # 1. 获取最新Release的tag_name
           LATEST_VERSION=$(curl -s \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             https://api.github.com/repos/zzlb0224/Tick/releases/latest | jq -r '.tag_name')
-          
-          # 2. 去掉v前缀
           LATEST_VERSION=${LATEST_VERSION#v}
-          
-          # 3. 版本号最后一位+1（兼容x/x.y/x.y.z格式）
           IFS='.' read -ra VERSION_PARTS <<< "$LATEST_VERSION"
           LAST_PART=${VERSION_PARTS[-1]}
           NEW_LAST_PART=$((LAST_PART + 1))
           unset VERSION_PARTS[-1]
           NEW_VERSION="${VERSION_PARTS[*]}.${NEW_LAST_PART}"
-          NEW_VERSION=${NEW_VERSION// /}  # 去除空格
-          
-          # 输出变量供后续使用
+          NEW_VERSION=${NEW_VERSION// /}
           echo "NEW_VERSION_NAME=$NEW_VERSION" >> $GITHUB_ENV
           echo "✅ Original version: $LATEST_VERSION → New version: $NEW_VERSION"
 
-      # 安装zipalign依赖（签名必需）
+      # 安装Android构建依赖
       - name: Install Android SDK Build Tools
         run: |
           sudo apt update
           sudo apt install -y android-sdk-build-tools
 
-      # 解密keystore（彻底移除if条件，改用步骤内校验，解决语法错误）
+      # 解密keystore（步骤内校验secrets）
       - name: Decrypt keystore
         run: |
-          # 步骤内校验secrets是否存在，避免if条件语法错误
           if [ -z "${{ secrets.GPG_PASSWORD }}" ] || [ -z "${{ secrets.KEYSTORE_FILE }}" ]; then
             echo "⚠️ GPG_PASSWORD或KEYSTORE_FILE未配置，跳过keystore解密"
-            exit 0  # 正常退出，不终止流程
+            exit 0
           fi
-          
-          # 解密keystore
           gpg --quiet --batch --yes --decrypt --passphrase="${{ secrets.GPG_PASSWORD }}" \
           --output my-release-key.keystore ${{ secrets.KEYSTORE_FILE }}
-          
-          # 验证keystore是否生成
           if [ ! -f "my-release-key.keystore" ]; then
             echo "❌ Keystore解密失败" && exit 1
           fi
 
+      # 修复Gradle权限+强制使用JDK 8运行Gradle
       - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+        run: |
+          chmod +x gradlew
+          # 强制指定Gradle使用JDK 8（关键！避免Gradle调用系统高版本JDK）
+          echo "org.gradle.java.home=${{ env.JAVA_HOME }}" >> gradle.properties
 
-      # 编译未签名APK
+      # 编译Release APK（添加--stacktrace便于调试）
       - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      # 签名APK（添加secrets校验，避免无keystore时崩溃）
+      # 签名APK
       - name: Sign APK
         run: |
-          # 先校验keystore是否存在
           if [ ! -f "my-release-key.keystore" ]; then
             echo "❌ 未找到keystore文件，无法签名APK" && exit 1
           fi
-          
-          # 查找未签名APK
           APK_PATH=$(find app/build/outputs/apk/release -name "app-release-unsigned.apk")
           if [ -z "$APK_PATH" ]; then
             echo "❌ 未找到未签名APK" && exit 1
           fi
-          
-          # 签名
           jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
           -keystore my-release-key.keystore \
           -storepass ${{ secrets.KEYSTORE_PASSWORD }} \
           -keypass ${{ secrets.KEY_PASSWORD }} \
           $APK_PATH ${{ secrets.KEY_ALIAS }}
-          
-          # 优化并命名签名APK（使用+1后的版本号）
           SIGNED_APK="app/build/outputs/apk/release/app-v${{ env.NEW_VERSION_NAME }}-release-signed.apk"
           /usr/bin/zipalign -v 4 $APK_PATH $SIGNED_APK
-          
-          # 验证签名APK是否生成
           if [ ! -f "$SIGNED_APK" ]; then
             echo "❌ 签名APK生成失败" && exit 1
           fi
@@ -120,7 +125,7 @@ jobs:
         if: always()
         run: rm -f my-release-key.keystore
 
-      # 额外：上传签名APK作为Artifact（可选）
+      # 上传Artifact
       - name: Upload Signed APK Artifact
         uses: actions/upload-artifact@v4
         with:
