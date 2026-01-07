@@ -13,7 +13,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 关键修改：将JDK 11改为JDK 8（适配Gradle 3.3）
       - name: Set up JDK 8
         uses: actions/setup-java@v4
         with:
@@ -21,15 +20,24 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # 赋予Gradle执行权限（旧版Gradle需要显式授权）
+      # 新增：配置Gradle镜像（加速依赖下载）
+      - name: Configure Gradle mirror
+        run: |
+          mkdir -p ~/.gradle
+          echo "allprojects {
+                repositories {
+                    maven { url 'https://maven.aliyun.com/repository/google' }
+                    maven { url 'https://maven.aliyun.com/repository/public' }
+                    mavenCentral()
+                }
+              }" > ~/.gradle/init.gradle
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # 编译Release版APK，添加--stacktrace便于排查其他问题
       - name: Build Release APK
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      # 上传编译产物
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
