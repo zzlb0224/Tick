@@ -13,22 +13,36 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 新增步骤：获取最新Release的versionName（仅提取tag_name，不修改任何文件）
-      - name: Get latest release versionName
-        id: get_latest_version
+      # 核心步骤：获取最新版本号并+1
+      - name: Get latest versionName and increment
+        id: get_version
         run: |
-          # 调用GitHub API获取最新Release，提取tag_name（核心字段）
-          # 自动处理API频率限制：使用内置GITHUB_TOKEN认证
+          # 1. 调用API获取最新Release的tag_name（带认证避免频率限制）
           LATEST_VERSION=$(curl -s \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             https://api.github.com/repos/zzlb0224/Tick/releases/latest | jq -r '.tag_name')
-          # 可选：去掉版本标签前缀（如v1.0.0 → 1.0.0），不需要则注释此行
+          
+          # 2. 去掉版本前缀（如v1.2.3 → 1.2.3，无v则跳过）
           LATEST_VERSION=${LATEST_VERSION#v}
-          # 将版本号输出为step变量，供后续步骤复用（如产物命名、日志输出）
-          echo "VERSION_NAME=$LATEST_VERSION" >> $GITHUB_OUTPUT
-          echo "✅ Latest versionName fetched: $LATEST_VERSION"
+          
+          # 3. 版本号最后一位+1（兼容x、x.y、x.y.z等格式）
+          # 拆分版本号为数组
+          IFS='.' read -ra VERSION_PARTS <<< "$LATEST_VERSION"
+          # 获取最后一位并+1
+          LAST_PART=${VERSION_PARTS[-1]}
+          NEW_LAST_PART=$((LAST_PART + 1))
+          # 重组版本号
+          unset VERSION_PARTS[-1]
+          NEW_VERSION="${VERSION_PARTS[*]}.${NEW_LAST_PART}"
+          # 去除多余空格（数组转字符串时的分隔符问题）
+          NEW_VERSION=${NEW_VERSION// /}
+          
+          # 4. 输出变量供后续使用
+          echo "ORIGINAL_VERSION=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "✅ Original version: $LATEST_VERSION → New version: $NEW_VERSION"
 
-      # 原有逻辑：JDK 8配置（未修改）
+      # 原有JDK配置（未修改）
       - name: Set up JDK 8
         uses: actions/setup-java@v4
         with:
@@ -36,19 +50,19 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # 原有逻辑：Gradle权限（未修改）
+      # 原有Gradle权限（未修改）
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # 原有逻辑：编译Release APK（未修改，可按需添加版本号日志）
+      # 编译APK（新增版本号日志）
       - name: Build Release APK
         run: |
-          echo "📤 Building APK for version: ${{ steps.get_latest_version.outputs.VERSION_NAME }}"
+          echo "📤 Building APK for new version: ${{ steps.get_version.outputs.NEW_VERSION }}"
           ./gradlew assembleRelease --no-daemon --stacktrace
 
-      # 优化：产物命名（含versionName），保持原有上传逻辑
+      # 产物命名（使用+1后的版本号）
       - name: Rename & Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-${{ steps.get_latest_version.outputs.VERSION_NAME }}.apk
+          name: app-release-${{ steps.get_version.outputs.NEW_VERSION }}.apk
           path: app/build/outputs/apk/release/*.apk
