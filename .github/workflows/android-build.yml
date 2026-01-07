@@ -1,4 +1,4 @@
-name: Android Build
+name: Android Build & Sign
 
 on:
   push:
@@ -20,26 +20,42 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # 新增：配置Gradle镜像（加速依赖下载）
-      - name: Configure Gradle mirror
+      # 步骤1：解密keystore（若未加密则跳过此步）
+      - name: Decrypt keystore
         run: |
-          mkdir -p ~/.gradle
-          echo "allprojects {
-                repositories {
-                    maven { url 'https://maven.aliyun.com/repository/google' }
-                    maven { url 'https://maven.aliyun.com/repository/public' }
-                    mavenCentral()
-                }
-              }" > ~/.gradle/init.gradle
+          gpg --quiet --batch --yes --decrypt --passphrase="${{ secrets.GPG_PASSWORD }}" \
+          --output my-release-key.keystore ${{ secrets.KEYSTORE_FILE }}
 
+      # 步骤2：赋予Gradle执行权限
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # 步骤3：编译unsigned APK
       - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: ./gradlew assembleRelease --no-daemon
 
-      - name: Upload APK
+      # 步骤4：自动签名APK
+      - name: Sign APK
+        run: |
+          # 找到unsigned APK路径
+          APK_PATH=$(find app/build/outputs/apk/release -name "app-release-unsigned.apk")
+          # 签名命令（jarsigner）
+          jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 \
+          -keystore my-release-key.keystore \
+          -storepass ${{ secrets.KEYSTORE_PASSWORD }} \
+          -keypass ${{ secrets.KEY_PASSWORD }} \
+          $APK_PATH ${{ secrets.KEY_ALIAS }}
+          # 优化签名后的APK（zipalign）
+          zipalign -v 4 $APK_PATH app/build/outputs/apk/release/app-release-signed.apk
+
+      # 步骤5：上传已签名的APK（重点！）
+      - name: Upload Signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          name: app-release-signed
+          path: app/build/outputs/apk/release/app-release-signed.apk
+
+      # 可选：删除本地keystore（清理敏感文件）
+      - name: Clean up keystore
+        if: always()
+        run: rm -f my-release-key.keystore
