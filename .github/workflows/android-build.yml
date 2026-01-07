@@ -137,5 +137,5 @@ jobs:
       - name: Upload Signed APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-v${{ env.NEW_VERSION_NAME }}-release-signed.apk
-          path: app/build/outputs/apk/release/app-v${{ env.NEW_VERSION_NAME }}-release-signed.apk
+          name: tick-v${{ env.NEW_VERSION_NAME }}-release-signed.apk
+          path: app/build/outputs/apk/release/tick-v${{ env.NEW_VERSION_NAME }}-release-signed.apk
