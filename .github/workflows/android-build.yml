@@ -45,13 +45,19 @@ jobs:
           sudo apt update
           sudo apt install -y android-sdk-build-tools
 
-      # 解密keystore（修复if条件语法错误！！）
+      # 解密keystore（彻底移除if条件，改用步骤内校验，解决语法错误）
       - name: Decrypt keystore
-        # 正确语法：所有secrets引用必须包裹在${{ }}中
-        if: ${{ (secrets.GPG_PASSWORD != '') && (secrets.KEYSTORE_FILE != '') }}
         run: |
+          # 步骤内校验secrets是否存在，避免if条件语法错误
+          if [ -z "${{ secrets.GPG_PASSWORD }}" ] || [ -z "${{ secrets.KEYSTORE_FILE }}" ]; then
+            echo "⚠️ GPG_PASSWORD或KEYSTORE_FILE未配置，跳过keystore解密"
+            exit 0  # 正常退出，不终止流程
+          fi
+          
+          # 解密keystore
           gpg --quiet --batch --yes --decrypt --passphrase="${{ secrets.GPG_PASSWORD }}" \
           --output my-release-key.keystore ${{ secrets.KEYSTORE_FILE }}
+          
           # 验证keystore是否生成
           if [ ! -f "my-release-key.keystore" ]; then
             echo "❌ Keystore解密失败" && exit 1
@@ -64,9 +70,14 @@ jobs:
       - name: Build Release APK
         run: ./gradlew assembleRelease --no-daemon
 
-      # 签名APK
+      # 签名APK（添加secrets校验，避免无keystore时崩溃）
       - name: Sign APK
         run: |
+          # 先校验keystore是否存在
+          if [ ! -f "my-release-key.keystore" ]; then
+            echo "❌ 未找到keystore文件，无法签名APK" && exit 1
+          fi
+          
           # 查找未签名APK
           APK_PATH=$(find app/build/outputs/apk/release -name "app-release-unsigned.apk")
           if [ -z "$APK_PATH" ]; then
