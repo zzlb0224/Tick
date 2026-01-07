@@ -2,7 +2,7 @@ name: Android Build & Sign & Release
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
 
 jobs:
@@ -31,32 +31,50 @@ jobs:
       # 自动递增版本号（带默认值兜底）
       - name: Auto increment version code and name
         run: |
+          set -euo pipefail
           BUILD_GRADLE_PATH="app/build.gradle"
-          CURRENT_VERSION_NAME=$(grep -oP 'versionName "\K[^"]+' $BUILD_GRADLE_PATH || echo "1.0.0")
-          CURRENT_VERSION_CODE=$(grep -oP 'versionCode \K\d+' $BUILD_GRADLE_PATH || echo "1")
-          
+
+          # read current values (fallback to defaults)
+          if grep -q 'versionName' "$BUILD_GRADLE_PATH"; then
+            CURRENT_VERSION_NAME=$(grep -m1 'versionName' "$BUILD_GRADLE_PATH" | sed -E 's/.*versionName *"([^"]+)".*/\1/')
+          else
+            CURRENT_VERSION_NAME="1.0.0"
+          fi
+
+          if grep -q 'versionCode' "$BUILD_GRADLE_PATH"; then
+            CURRENT_VERSION_CODE=$(grep -m1 'versionCode' "$BUILD_GRADLE_PATH" | sed -E 's/.*versionCode *([0-9]+).*/\1/')
+          else
+            CURRENT_VERSION_CODE=1
+          fi
+
+          # compute new values
           NEW_VERSION_CODE=$((CURRENT_VERSION_CODE + 1))
-          NEW_VERSION_NAME=$(echo $CURRENT_VERSION_NAME | awk -F. '{print $1"."$2"."$3+1}')
-          
-          echo "Current version: $CURRENT_VERSION_NAME (code: $CURRENT_VERSION_CODE)"
-          echo "New version: $NEW_VERSION_NAME (code: $NEW_VERSION_CODE)"
-          
-          # 新增/替换versionCode
-          if ! grep -q "versionCode" $BUILD_GRADLE_PATH; then
-            sed -i '/defaultConfig {/a \        versionCode '"$NEW_VERSION_CODE" $BUILD_GRADLE_PATH
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${CURRENT_VERSION_NAME}"
+          MAJOR=${MAJOR:-0}; MINOR=${MINOR:-0}; PATCH=${PATCH:-0}
+          if ! [[ $PATCH =~ ^[0-9]+$ ]]; then PATCH=0; fi
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION_NAME="${MAJOR}.${MINOR}.${NEW_PATCH}"
+
+          echo "Current version: ${CURRENT_VERSION_NAME} (code: ${CURRENT_VERSION_CODE})"
+          echo "New version: ${NEW_VERSION_NAME} (code: ${NEW_VERSION_CODE})"
+
+          # replace or insert versionCode
+          if grep -q 'versionCode' "$BUILD_GRADLE_PATH"; then
+            sed -i -E "s/(versionCode[[:space:]]*)[0-9]+/\1${NEW_VERSION_CODE}/" "$BUILD_GRADLE_PATH"
           else
-            sed -i "s/versionCode $CURRENT_VERSION_CODE/versionCode $NEW_VERSION_CODE/" $BUILD_GRADLE_PATH
+            sed -i "/defaultConfig {/a \        versionCode ${NEW_VERSION_CODE}" "$BUILD_GRADLE_PATH"
           fi
-          
-          # 新增/替换versionName
-          if ! grep -q "versionName" $BUILD_GRADLE_PATH; then
-            sed -i '/defaultConfig {/a \        versionName "'"$NEW_VERSION_NAME"'"' $BUILD_GRADLE_PATH
+
+          # replace or insert versionName
+          if grep -q 'versionName' "$BUILD_GRADLE_PATH"; then
+            sed -i -E "s/(versionName[[:space:]]*")[^"]+("[[:space:]]*)/\1${NEW_VERSION_NAME}\2/" "$BUILD_GRADLE_PATH"
           else
-            sed -i "s/versionName \"$CURRENT_VERSION_NAME\"/versionName \"$NEW_VERSION_NAME\"/" $BUILD_GRADLE_PATH
+            sed -i "/defaultConfig {/a \        versionName \"${NEW_VERSION_NAME}\"" "$BUILD_GRADLE_PATH"
           fi
-          
-          echo "NEW_VERSION_NAME=$NEW_VERSION_NAME" >> $GITHUB_ENV
-          echo "NEW_VERSION_CODE=$NEW_VERSION_CODE" >> $GITHUB_ENV
+
+          echo "NEW_VERSION_NAME=${NEW_VERSION_NAME}" >> $GITHUB_ENV
+          echo "NEW_VERSION_CODE=${NEW_VERSION_CODE}" >> $GITHUB_ENV
 
       # 解密keystore（若未加密则跳过）
       - name: Decrypt keystore
