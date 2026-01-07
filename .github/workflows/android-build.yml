@@ -45,9 +45,10 @@ jobs:
           sudo apt update
           sudo apt install -y android-sdk-build-tools
 
-      # 解密keystore（签名必需）
+      # 解密keystore（修复if条件语法错误！！）
       - name: Decrypt keystore
-        if: ${{ secrets.GPG_PASSWORD && secrets.KEYSTORE_FILE }}
+        # 正确语法：所有secrets引用必须包裹在${{ }}中
+        if: ${{ (secrets.GPG_PASSWORD != '') && (secrets.KEYSTORE_FILE != '') }}
         run: |
           gpg --quiet --batch --yes --decrypt --passphrase="${{ secrets.GPG_PASSWORD }}" \
           --output my-release-key.keystore ${{ secrets.KEYSTORE_FILE }}
@@ -63,7 +64,7 @@ jobs:
       - name: Build Release APK
         run: ./gradlew assembleRelease --no-daemon
 
-      # 签名APK（核心补充步骤）
+      # 签名APK
       - name: Sign APK
         run: |
           # 查找未签名APK
@@ -88,7 +89,7 @@ jobs:
             echo "❌ 签名APK生成失败" && exit 1
           fi
 
-      # 发布到GitHub Release（核心补充步骤）
+      # 发布到GitHub Release
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -108,7 +109,7 @@ jobs:
         if: always()
         run: rm -f my-release-key.keystore
 
-      # 额外：上传签名APK作为Artifact（可选，双重保障）
+      # 额外：上传签名APK作为Artifact（可选）
       - name: Upload Signed APK Artifact
         uses: actions/upload-artifact@v4
         with:
