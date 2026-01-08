@@ -9,4 +9,7 @@
     <integer name="pref_long_break_min">2</integer>
     <integer name="pref_long_break_frequency_max">6</integer>
     <integer name="pref_long_break_frequency_min">2</integer>
+    <!-- 颜色滑块范围 -->
+    <integer name="pref_color_max">255</integer>
+    <integer name="pref_color_min">0</integer>
 </resources>

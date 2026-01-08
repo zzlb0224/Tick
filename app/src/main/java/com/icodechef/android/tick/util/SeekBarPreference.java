@@ -129,6 +129,10 @@ public class SeekBarPreference implements SeekBar.OnSeekBarChangeListener {
 
     @Override
     public void onStopTrackingTouch(SeekBar seekBar) {
-
+        // Ensure the current progress is synchronously persisted when user finishes interaction
+        SharedPreferences.Editor editor = mSharedPreferences.edit();
+        editor.putInt(mKey, mProgress);
+        // commit synchronously to avoid apply being delayed across process restarts
+        editor.commit();
     }
 }

@@ -112,6 +112,12 @@ public class MainActivity extends AppCompatActivity
         applyDrawerBgFromPrefs();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        applyDrawerBgFromPrefs();
+    }
+
     private void applyDrawerBgFromPrefs() {
         android.content.SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         int r = prefs.getInt("pref_key_bg_r", 255);

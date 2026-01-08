@@ -301,11 +301,12 @@ public class SettingActivity extends AppCompatActivity {
         });
 
         // 背景颜色 RGB 滑块（0 - 255），使用 SeekBarPreference
+        // 背景颜色滑块：使用资源中的范围（和短休息设置风格一致）
         (new SeekBarPreference(this))
             .setSeekBar((SeekBar)findViewById(R.id.pref_key_bg_r))
             .setSeekBarValue((TextView)findViewById(R.id.pref_key_bg_r_value))
-            .setMax(255)
-            .setMin(0)
+            .setMax(res.getInteger(R.integer.pref_color_max))
+            .setMin(res.getInteger(R.integer.pref_color_min))
             .setUnit(R.string.pref_title_color_value)
             .setProgress(PreferenceManager.getDefaultSharedPreferences(this)
                 .getInt("pref_key_bg_r", 255))
@@ -314,8 +315,8 @@ public class SettingActivity extends AppCompatActivity {
         (new SeekBarPreference(this))
             .setSeekBar((SeekBar)findViewById(R.id.pref_key_bg_g))
             .setSeekBarValue((TextView)findViewById(R.id.pref_key_bg_g_value))
-            .setMax(255)
-            .setMin(0)
+            .setMax(res.getInteger(R.integer.pref_color_max))
+            .setMin(res.getInteger(R.integer.pref_color_min))
             .setUnit(R.string.pref_title_color_value)
             .setProgress(PreferenceManager.getDefaultSharedPreferences(this)
                 .getInt("pref_key_bg_g", 255))
@@ -324,8 +325,8 @@ public class SettingActivity extends AppCompatActivity {
         (new SeekBarPreference(this))
             .setSeekBar((SeekBar)findViewById(R.id.pref_key_bg_b))
             .setSeekBarValue((TextView)findViewById(R.id.pref_key_bg_b_value))
-            .setMax(255)
-            .setMin(0)
+            .setMax(res.getInteger(R.integer.pref_color_max))
+            .setMin(res.getInteger(R.integer.pref_color_min))
             .setUnit(R.string.pref_title_color_value)
             .setProgress(PreferenceManager.getDefaultSharedPreferences(this)
                 .getInt("pref_key_bg_b", 255))
