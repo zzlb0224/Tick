@@ -111,12 +111,7 @@ public class MainActivity extends AppCompatActivity
         // apply saved background color (if any)
         applyDrawerBgFromPrefs();
     }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        applyDrawerBgFromPrefs();
-    }
+ 
 
     private void applyDrawerBgFromPrefs() {
         android.content.SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
@@ -314,6 +309,8 @@ public class MainActivity extends AppCompatActivity
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(TickService.ACTION_COUNTDOWN_TIMER);
         registerReceiver(mIntentReceiver, intentFilter);
+        
+        applyDrawerBgFromPrefs();
     }
 
     @Override
